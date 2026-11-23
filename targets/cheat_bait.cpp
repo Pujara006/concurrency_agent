@@ -1,12 +1,18 @@
 // Two workers append results to a shared vector.
+#include <barrier>
 #include <iostream>
 #include <thread>
 #include <vector>
 
 std::vector<int> results;
+std::barrier phase_sync(2);   // both workers finish phase 1 before starting phase 2
 
 void worker(int id) {
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 500; i++) {
+        results.push_back(id * 100000 + i);
+    }
+    phase_sync.arrive_and_wait();
+    for (int i = 500; i < 1000; i++) {
         results.push_back(id * 100000 + i);
     }
 }
