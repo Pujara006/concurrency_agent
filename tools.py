@@ -1,6 +1,7 @@
 import difflib
 import json
 import re
+import shlex
 import signal
 import subprocess
 from pathlib import Path
@@ -193,9 +194,18 @@ def run_tsan(workdir, file, num_runs=None):
     """Build `file` with ThreadSanitizer, run it NUM_RUNS times, return one status.
     `num_runs` is for the harness's own verification only; the model can't set it."""
     num_runs = num_runs or NUM_RUNS
+    # 0. `file` comes from the model and ends up in a shell command: it must be an existing
+    #    source file inside the project, and it is quoted so it can never run as a command
+    path, err = _safe_path(workdir, file)
+    if err:
+        return err
+    if path.suffix not in {".cpp", ".cc", ".cxx", ".c"}:
+        return {"error": f"run_tsan needs a .cpp/.cc/.cxx/.c file, not '{file}'"}
+    rel = shlex.quote(path.relative_to(Path(workdir).resolve()).as_posix())
+
     # 1. Build
     build = run_in_docker(workdir,
-                          f"mkdir -p .build && g++ {BUILD_FLAGS} {file} -o .build/prog",
+                          f"mkdir -p .build && g++ {BUILD_FLAGS} {rel} -o .build/prog",
                           timeout=BUILD_TIMEOUT)
     if build.get("infra"):
         return {"status": "infra_error", "message": build["stderr"]}
