@@ -7,3 +7,7 @@ targets/*_tsan
 __pycache__/
 *.pyc
 .env
+
+# python env and agent run folders
+.venv/
+runs/

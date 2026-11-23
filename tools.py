@@ -189,8 +189,10 @@ def summarize_reports(workdir, stderrs):
     return {"warnings": warnings[:MAX_WARNINGS], "omitted": max(0, len(warnings) - MAX_WARNINGS)}
 
 
-def run_tsan(workdir, file):
-    """Build `file` with ThreadSanitizer, run it NUM_RUNS times, return one status."""
+def run_tsan(workdir, file, num_runs=None):
+    """Build `file` with ThreadSanitizer, run it NUM_RUNS times, return one status.
+    `num_runs` is for the harness's own verification only; the model can't set it."""
+    num_runs = num_runs or NUM_RUNS
     # 1. Build
     build = run_in_docker(workdir,
                           f"mkdir -p .build && g++ {BUILD_FLAGS} {file} -o .build/prog",
@@ -202,7 +204,7 @@ def run_tsan(workdir, file):
 
     # 2. Run N times, each with a timeout inside the container
     runs = []
-    for i in range(NUM_RUNS):
+    for i in range(num_runs):
         r = run_in_docker(workdir,
                           f"TSAN_OPTIONS={TSAN_OPTIONS} timeout {RUN_TIMEOUT} ./.build/prog",
                           timeout=RUN_TIMEOUT + 30)
@@ -220,7 +222,7 @@ def run_tsan(workdir, file):
     warned = [r for r in runs if "WARNING: ThreadSanitizer" in r["stderr"]]
     if warned:
         return {"status": "warnings",
-                "runs_with_warnings": f"{len(warned)}/{NUM_RUNS}",
+                "runs_with_warnings": f"{len(warned)}/{num_runs}",
                 **summarize_reports(workdir, [r["stderr"] for r in warned])}
 
     # 4. No TSan warnings, but a run crashed or exited non-zero: never report that as clean
@@ -228,7 +230,7 @@ def run_tsan(workdir, file):
     if failed:
         run_no, r = failed[0]
         result = {"status": "crashed", "run": run_no,
-                  "runs_failed": f"{len(failed)}/{NUM_RUNS}",
+                  "runs_failed": f"{len(failed)}/{num_runs}",
                   "exit_code": r["exit_code"],
                   "message": "no ThreadSanitizer warnings, but the program crashed or exited "
                              "with a non-zero code; this is not a success"}
@@ -246,7 +248,7 @@ def run_tsan(workdir, file):
 
     # 5. Clean in every run
     outputs = {r["stdout"] for r in runs}
-    return {"status": "clean", "runs": NUM_RUNS,
+    return {"status": "clean", "runs": num_runs,
             "consistent_output": len(outputs) == 1,
             "output": runs[0]["stdout"]}
 
