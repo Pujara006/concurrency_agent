@@ -1,0 +1,9 @@
+# build outputs from run_tsan
+.build/
+
+# compiled test binaries
+targets/*_tsan
+
+__pycache__/
+*.pyc
+.env
