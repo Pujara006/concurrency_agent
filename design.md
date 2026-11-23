@@ -14,11 +14,14 @@ ThreadSanitizer output, fixes it with minimal changes, and proves the fix with r
   1. Builds in Docker (Linux, `-fsanitize=thread -g`, optimization level from config).
   2. Runs the program N times (N from config), each run under a timeout.
   3. Preprocesses every report before returning it.
-- **Output: one of four statuses**
+- **Output: one status**
   - `build_failed`: compiler errors (trimmed to the relevant lines).
-  - `timeout`: the program hung (likely deadlock) + any partial report.
+  - `timeout`: the program hung (likely deadlock) + any partial report, preprocessed.
   - `warnings`: preprocessed report(s).
-  - `clean`: no warnings in all N runs + the program's output from each run.
+  - `crashed`: no warnings, but a run crashed or exited non-zero + project frames of the crash.
+    Never counted as clean.
+  - `clean`: no warnings and exit code 0 in all N runs + the program's output.
+  - `infra_error`: Docker missing or stuck; not the agent's fault, stop the loop.
 - **Preprocessing (inside the tool, the model never sees raw reports):** keep only
   - warning type (`data race`, `lock-order-inversion`, ...)
   - for each conflicting access: read/write, thread, and the **first stack frame whose file
@@ -152,3 +155,6 @@ optional second layer for subtle cases.
 - A bug can have several valid fixes → verify the problem is gone, don't compare
   against one expected fix.
 - Reports are ~90% noise → preprocess before the model sees them.
+
+
+Later: build with -Wall -Wextra, compare warnings with the original, report new ones as a fix-quality metric.

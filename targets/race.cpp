@@ -16,6 +16,6 @@ int main()
     std::thread t2(increment);
     t1.join();
     t2.join();
-    std::cout << counter << std::endl;
+    std::cout<< counter << std::endl;
     return 0;
 }
