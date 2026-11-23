@@ -1,19 +1,31 @@
 // Two accounts; money moves between them while an auditor checks the total.
+#include <barrier>
 #include <iostream>
 #include <thread>
 
 int checking = 1000;
 int savings = 1000;
+std::barrier phase_sync(3);   // all three threads finish phase 1 before starting phase 2
 
 void to_savings(int n) {
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n / 2; i++) {
+        checking -= 1;
+        savings += 1;
+    }
+    phase_sync.arrive_and_wait();
+    for (int i = 0; i < n / 2; i++) {
         checking -= 1;
         savings += 1;
     }
 }
 
 void to_checking(int n) {
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n / 2; i++) {
+        savings -= 1;
+        checking += 1;
+    }
+    phase_sync.arrive_and_wait();
+    for (int i = 0; i < n / 2; i++) {
         savings -= 1;
         checking += 1;
     }
@@ -22,7 +34,12 @@ void to_checking(int n) {
 int bad_audits = 0;   // only the auditor thread touches this
 
 void auditor(int n) {
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n / 2; i++) {
+        int total = checking + savings;
+        if (total != 2000) bad_audits++;
+    }
+    phase_sync.arrive_and_wait();
+    for (int i = 0; i < n / 2; i++) {
         int total = checking + savings;
         if (total != 2000) bad_audits++;
     }

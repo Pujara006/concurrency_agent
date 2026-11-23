@@ -8,7 +8,8 @@ from pathlib import Path
 
 # --- settings (later: move to a locked config file) ---
 DOCKER_IMAGE = "gcc:14"
-BUILD_FLAGS = "-std=c++17 -fsanitize=thread -g -O0 -fdiagnostics-format=json"
+BUILD_FLAGS = "-std=c++20 -fsanitize=thread -g -O0 -fdiagnostics-format=json"  # c++20: std::barrier
+MAX_OUTPUT_CHARS = 2000 # program output sent to the model
 BUILD_TIMEOUT = 60      # seconds for a build (later: measured per target)
 NUM_RUNS = 5
 RUN_TIMEOUT = 10        # seconds per run (later: measured per target)
@@ -190,9 +191,9 @@ def summarize_reports(workdir, stderrs):
     return {"warnings": warnings[:MAX_WARNINGS], "omitted": max(0, len(warnings) - MAX_WARNINGS)}
 
 
-def run_tsan(workdir, file, num_runs=None):
+def run_tsan(workdir, file, num_runs=None, full_output=False):
     """Build `file` with ThreadSanitizer, run it NUM_RUNS times, return one status.
-    `num_runs` is for the harness's own verification only; the model can't set it."""
+    `num_runs` and `full_output` are for the harness's own verification; the model can't set them."""
     num_runs = num_runs or NUM_RUNS
     # 0. `file` comes from the model and ends up in a shell command: it must be an existing
     #    source file inside the project, and it is quoted so it can never run as a command
@@ -258,9 +259,13 @@ def run_tsan(workdir, file, num_runs=None):
 
     # 5. Clean in every run
     outputs = {r["stdout"] for r in runs}
-    return {"status": "clean", "runs": num_runs,
-            "consistent_output": len(outputs) == 1,
-            "output": runs[0]["stdout"]}
+    output = runs[0]["stdout"]
+    result = {"status": "clean", "runs": num_runs,
+              "consistent_output": len(outputs) == 1,
+              "output": output if full_output else output[:MAX_OUTPUT_CHARS]}
+    if not full_output and len(output) > MAX_OUTPUT_CHARS:
+        result["output_truncated"] = f"showing {MAX_OUTPUT_CHARS} of {len(output)} chars"
+    return result
 
 
 # --- code tools: read_file, search_code, edit_file ---
